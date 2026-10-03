@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mapa de Rutas Alternas verificadas</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<style>
+  :root{
+    --ink:#1c2b2d;
+    --paper:#f6f3ec;
+    --line:#c9c2b0;
+    --pernocte:#3b4a9e;
+    --alimentacion:#c9622a;
+    --pausa:#2f8f5b;
+    --terminal:#8a1f3b;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;font-family:'Georgia','Times New Roman',serif;background:var(--paper);color:var(--ink);}
+  #app{display:flex;flex-direction:column;height:100vh;}
+
+  header{
+    padding:16px 24px;
+    border-bottom:2px solid var(--ink);
+    background:var(--paper);
+  }
+  header h1{margin:0;font-size:1.3rem;letter-spacing:0.02em;font-weight:700;}
+  header p{margin:2px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:0.76rem;color:#555;letter-spacing:0.03em;text-transform:uppercase;}
+
+  #body{flex:1;display:flex;min-height:0;}
+
+  /* ---- MENU ---- */
+  #menu{
+    width:290px;
+    flex:none;
+    border-right:2px solid var(--ink);
+    padding:18px 16px;
+    background:var(--paper);
+    overflow-y:auto;
+  }
+  #menu .eyebrow{
+    font-family:Arial,Helvetica,sans-serif;
+    font-size:0.72rem;
+    color:#6b6252;
+    margin:0 0 14px;
+    font-weight:bold;
+  }
+  .menu-btn{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    width:100%;
+    min-height:78px;
+    text-align:center;
+    background:#fff;
+    border:1.5px solid var(--ink);
+    border-radius:2px;
+    padding:12px 14px;
+    margin-bottom:10px;
+    font-family:Georgia,serif;
+    font-size:0.9rem;
+    line-height:1.35;
+    color:var(--ink);
+    cursor:pointer;
+    transition:background .15s ease, transform .12s ease, color .15s ease;
+  }
+  .menu-btn small{
+    display:block;
+    font-family:Arial,Helvetica,sans-serif;
+    font-size:0.68rem;
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+    color:#8a7f66;
+    margin-top:4px;
+  }
+  .menu-btn:hover{transform:translateX(2px);}
+  .menu-btn.active{
+    background:var(--ink);
+    color:#fff;
+    border-color:var(--ink);
+  }
+  .menu-btn.active small{color:#cfc9b8;}
+
+  /* ---- MAP AREA ---- */
+  #mapzone{flex:1;display:flex;flex-direction:column;min-width:0;}
+  #mapzone-header{
+    padding:12px 24px;
+    border-bottom:1px solid var(--line);
+    font-family:Arial,Helvetica,sans-serif;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:8px;
+    min-height:20px;
+  }
+  #mapzone-header h2{margin:0;font-family:Georgia,serif;font-size:1.05rem;}
+  #mapzone-header .sub{font-size:0.75rem;color:#555;text-transform:uppercase;letter-spacing:0.03em;}
+  #legend{display:flex;gap:14px;flex-wrap:wrap;font-family:Arial,Helvetica,sans-serif;font-size:0.72rem;}
+  .legend-item{display:flex;align-items:center;gap:5px;}
+  .dot{width:12px;height:12px;border-radius:50%;border:2px solid rgba(0,0,0,0.25);flex:none;}
+
+  #mapzone-main{flex:1;display:flex;min-height:0;}
+  #map{flex:1;position:relative;}
+  #sidebar{width:300px;flex:none;overflow-y:auto;background:#fff;border-left:2px solid var(--ink);padding:14px 16px 40px;font-family:Arial,Helvetica,sans-serif;}
+  #sidebar h3{font-family:Georgia,serif;font-size:0.95rem;margin:0 0 10px;border-bottom:1px solid var(--line);padding-bottom:6px;}
+  .day-heading{font-size:0.68rem;text-transform:uppercase;letter-spacing:0.08em;color:#8a7f66;margin:14px 0 6px;font-family:Arial,Helvetica,sans-serif;font-weight:bold;}
+  .day-heading:first-of-type{margin-top:0;}
+  .stop-card{border-left:4px solid var(--ink);padding:8px 10px;margin-bottom:8px;background:#faf9f6;cursor:pointer;transition:transform .12s ease;}
+  .stop-card:hover{transform:translateX(2px);}
+  .stop-card .tag{display:inline-block;font-size:0.63rem;text-transform:uppercase;letter-spacing:0.05em;padding:2px 6px;border-radius:3px;color:#fff;margin-bottom:4px;}
+  .stop-card .title{font-weight:bold;font-size:0.81rem;margin:2px 0;}
+  .stop-card .meta{font-size:0.7rem;color:#666;}
+  .stop-card .detail{font-size:0.7rem;color:#444;margin-top:3px;line-height:1.35;}
+  .leaflet-popup-content{font-family:Arial,Helvetica,sans-serif;font-size:0.82rem;}
+  .leaflet-popup-content b{font-family:Georgia,serif;}
+
+  /* ---- PLACEHOLDER ---- */
+  #placeholder{
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-direction:column;
+    gap:10px;
+    color:#8a7f66;
+    font-family:Arial,Helvetica,sans-serif;
+    text-align:center;
+    padding:40px;
+  }
+  #placeholder .big{font-family:Georgia,serif;font-size:1.4rem;color:var(--ink);}
+  #placeholder .small{font-size:0.85rem;max-width:320px;line-height:1.5;}
+
+  @media (max-width:800px){
+    #body{flex-direction:column;}
+    #menu{width:100%;border-right:none;border-bottom:2px solid var(--ink);}
+    #mapzone-main{flex-direction:column;}
+    #sidebar{width:100%;border-left:none;border-top:2px solid var(--ink);max-height:34vh;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Mapa de Rutas Alternas verificadas</h1>
+    <p>Operación DEPRODECA · Servicio Abarrotes</p>
+  </header>
+
+  <div id="body">
+    <div id="menu">
+      <p class="eyebrow">Elija Mapa:</p>
+      <button class="menu-btn" data-route="sierra">
+        Huachipa &ndash; Arequipa
+        <small>Vía Puquio &ndash; Cusco</small>
+      </button>
+      <button class="menu-btn" data-route="abancay">
+        Huachipa &ndash; Abancay
+        <small>Vía Los Libertadores</small>
+      </button>
+      <button class="menu-btn" data-route="olmos">
+        Lambayeque &ndash; Piura
+        <small>Vía Olmos</small>
+      </button>
+    </div>
+
+    <div id="mapzone">
+      <div id="mapzone-header">
+        <div>
+          <h2 id="route-title">Mapas</h2>
+          <div class="sub" id="route-sub"></div>
+        </div>
+        <div id="legend">
+          <div class="legend-item"><span class="dot" style="background:var(--terminal)"></span>Origen / Destino</div>
+          <div class="legend-item"><span class="dot" style="background:var(--alimentacion)"></span>Alimentación</div>
+          <div class="legend-item"><span class="dot" style="background:var(--pausa)"></span>Pausa activa</div>
+          <div class="legend-item"><span class="dot" style="background:var(--pernocte)"></span>Pernocte</div>
+          <div class="legend-item" id="legend-mixto" style="display:none"><span class="dot" style="background:#7a4f8f"></span>Alimentación y pernocte</div>
+        </div>
+      </div>
+
+      <div id="mapzone-main">
+        <div id="placeholder">
+          <div class="big">Selecciona un mapa</div>
+          <div class="small">Elige una de las rutas del menú de la izquierda para ver el recorrido, sus paradas y horarios.</div>
+        </div>
+        <div id="map" style="display:none;"></div>
+        <div id="sidebar" style="display:none;">
+          <h3>Paradas del recorrido</h3>
+          <div id="stop-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const colors = { origen:"#8a1f3b", destino:"#8a1f3b", alimentacion:"#c9622a", pausa:"#2f8f5b", pernocte:"#3b4a9e", mixto:"#7a4f8f" };
+const labels = { origen:"Origen", destino:"Destino", alimentacion:"Alimentación", pausa:"Pausa activa", pernocte:"Pernocte", mixto:"Alimentación y pernocte" };
+const symbols = { origen:"🚩", destino:"🏁", alimentacion:"🍽️", pausa:"⏸️", pernocte:"🌙", mixto:"🍽️🌙" };
+
+const routes = {
+  sierra: {
+    title: "Huachipa \u2013 Arequipa vía sierra (Nazca\u2013Puquio\u2013Abancay\u2013Sicuani)",
+    sub: "1634 km · Ruta Alterna · 3 días",
+    center: [-14.5,-73.5],
+    zoom: 6,
+    stops: [
+      { id:0, name:"Planta Gloria - Huachipa", type:"origen", day:null, time:"Inicio", lat:-12.0072418546063, lng:-76.9100346284133, note:"Punto de partida del viaje de ida." },
+      { id:1, name:"Vuelta de Gallo - Chincha (Km 184)", type:"alimentacion", day:1, time:"08:30 - 09:00", lat:-13.3965846890357, lng:-76.1969638404263, note:"Parada para alimentos." },
+      { id:2, name:"Vuelta de Gallo - Palpa (Km 402)", type:"alimentacion", day:1, time:"13:00 - 14:00", lat:-14.5519742620432, lng:-75.1940924510847, note:"Parada para alimentos." },
+      { id:3, name:"Leoncio Prado, Lucanas - Villatambo (Km 53)", type:"pausa", day:1, time:"17:30 - 17:45", lat:-14.8033019327895, lng:-74.6593933879414, note:"Pausa activa del conductor." },
+      { id:4, name:"Puquio, Lucanas (Km 152)", type:"pernocte", day:1, time:"21:00 - 04:00", lat:-14.6940848139694, lng:-74.1373966201229, note:"Pernocte nocturno (fin del Día 1)." },
+      { id:5, name:"Chalhuanca (Km 341)", type:"alimentacion", day:2, time:"08:30 - 09:00", lat:-14.2969427695873, lng:-73.2419760424331, note:"Parada para alimentos." },
+      { id:6, name:"Abancay (Km 767)", type:"alimentacion", day:2, time:"12:00 - 13:00", lat:-13.6564735974503, lng:-72.909344646062, note:"Parada para alimentos." },
+      { id:7, name:"Limatambo (Km 882)", type:"pausa", day:2, time:"16:30 - 16:45", lat:-13.5027416820814, lng:-72.5002640227362, note:"Pausa activa del conductor." },
+      { id:8, name:"Oropesa (Km 989)", type:"pernocte", day:2, time:"21:00 - 04:00", lat:-13.5828638038721, lng:-71.8098525714723, note:"Pernocte nocturno (fin del Día 2), cerca de Cusco." },
+      { id:9, name:"Sicuani (Km 1117)", type:"alimentacion", day:3, time:"07:00 - 07:30", lat:-14.2520270367054, lng:-71.2318999470213, note:"Parada para alimentos." },
+      { id:10, name:"Héctor Tejada, Pallapata", type:"pausa", day:3, time:"10:00 - 10:15", lat:-14.8911619938153, lng:-71.2072783717183, note:"Pausa activa del conductor." },
+      { id:11, name:"Patahuasi (Km 112)", type:"alimentacion", day:3, time:"14:00 - 15:00", lat:-16.0555792344245, lng:-71.4117679761328, note:"Parada para alimentos." },
+      { id:12, name:"Arequipa - Planta Gloria", type:"destino", day:3, time:"Llegada ~17:00", lat:-16.4275502488445, lng:-71.5584972885362, note:"Destino final del viaje de ida." }
+    ]
+  },
+  abancay: {
+    title: "Huachipa \u2013 Abancay vía Vía Los Libertadores",
+    sub: "890 km · 2 días",
+    center: [-13.4,-74.8],
+    zoom: 7,
+    stops: [
+      { id:0, name:"Planta Gloria - Huachipa", type:"origen", day:null, time:"Inicio (05:00)", lat:-12.0072418546063, lng:-76.9100346284133, note:"Punto de partida del viaje de ida." },
+      { id:1, name:"Ca. Panam. Sur Km 60.8, Chilca", type:"alimentacion", day:1, time:"07:00 - 07:30", lat:-12.4985776517331, lng:-76.7425442909733, note:"Parada para alimentos // Vuelta de Gallo." },
+      { id:2, name:"Vía Libertadores Km 2", type:"pausa", day:1, time:"10:00 - 10:15", lat:-13.679361865627, lng:-76.1438907041762, note:"Pausa activa del conductor." },
+      { id:3, name:"Vía Libertadores Km 112.6, Huaytara", type:"alimentacion", day:1, time:"13:30 - 14:30", lat:-13.6019785900109, lng:-75.3415216144271, note:"Parada para alimentos // Vuelta de Gallo." },
+      { id:4, name:"Vía Libertadores Km 313, Chunyacc, Ayacucho", type:"pernocte", day:1, time:"19:00 - 04:00", lat:-13.231687394562, lng:-74.2900532571353, note:"Pernocte nocturno (fin del Día 1)." },
+      { id:5, name:"Carr. Ayacucho-Andahuaylas Km 549, Uripa", type:"alimentacion", day:2, time:"08:30 - 09:00", lat:-13.5343594899349, lng:-73.6839626487611, note:"Parada para alimentos // Vuelta de Gallo." },
+      { id:6, name:"Andahuaylas Km 630", type:"alimentacion", day:2, time:"12:00 - 13:00", lat:-13.6431648329643, lng:-73.3589082537508, note:"Parada para alimentos // Vuelta de Gallo." },
+      { id:7, name:"Abancay Km 768", type:"destino", day:2, time:"Llegada ~17:00", lat:-13.6539379479124, lng:-72.904131365639, note:"Destino final del viaje de ida." }
+    ]
+  },
+  olmos: {
+    title: "Lambayeque \u2013 Piura, Vía Olmos",
+    sub: "Ruta Alterna · 10 puntos verificados",
+    center: [-5.93,-80.2],
+    zoom: 8,
+    focusZoom: 12,
+    stops: [
+      { id:0, name:"Inicio de Ruta Alterna", type:"origen", day:null, time:null, district:"Lambayeque", address:"Ctra. Fernando Belaunde Terry Km 0", sentido:"Sur a Norte", lat:-6.68310024778667, lng:-79.9036799563515, note:"Cruce Olmos Jaén / Piura" },
+      { id:1, name:"Estación de Servicios Grifo Primax", type:"pernocte", day:null, time:null, district:"Íllimo", address:"Ctra. Fernando Belaunde Terry Km 22.550", sentido:"Sur a Norte", lat:-6.48570859768453, lng:-79.8564555324429, note:"Zona segura para pernocte" },
+      { id:2, name:"Grifo Horeb - Petro Perú", type:"pernocte", day:null, time:null, district:"Íllimo", address:"Ctra. Fernando Belaunde Terry Km 24.800", sentido:"Sur a Norte", lat:-6.46566422983065, lng:-79.8557439578358, note:"Zona segura para pernocte" },
+      { id:3, name:"Grifo Repsol - Pacora", type:"pernocte", day:null, time:null, district:"Pacora", address:"Ctra. Fernando Belaunde Terry Km 29", sentido:"Sur a Norte", lat:-6.4318665883315, lng:-79.8419620452765, note:"Zona segura para pernocte" },
+      { id:4, name:"Cochera Cchisa Corporación SAC", type:"mixto", day:null, time:null, district:"Olmos", address:"Antigua Pan. Norte Km 85.350", sentido:"Sur a Norte", lat:-5.99951840554537, lng:-79.6927487463183, note:"Alimentación y zona segura para pernocte" },
+      { id:5, name:"Zona de Restaurantes", type:"alimentacion", day:null, time:null, district:"Olmos", address:"Carr. Interoceánica Norte Km 91.600", sentido:"Sureste a Noroeste", lat:-5.98454909500026, lng:-79.7408772427478, note:"Alimentación" },
+      { id:6, name:"Cochera - Balanza Frutinort", type:"pernocte", day:null, time:null, district:"Olmos", address:"Carr. Interoceánica Norte Km 95.150", sentido:"Noroeste a Sureste", lat:-5.95715181047427, lng:-79.7562041971803, note:"Zona segura para pernocte" },
+      { id:7, name:"Restaurant, Cevichería La Olla", type:"alimentacion", day:null, time:null, district:"Capilla Central", address:"Carr. Interoceánica Norte Km 136.340", sentido:"Noroeste a Sureste", lat:-5.63030690049695, lng:-79.8835556135515, note:"Alimentación" },
+      { id:8, name:"Restaurante Km 64", type:"alimentacion", day:null, time:null, district:"La Matanza", address:"Carr. Interoceánica Norte Km 191.600", sentido:"Sureste a Noroeste", lat:-5.24511190716201, lng:-80.112105635219, note:"Alimentación" },
+      { id:9, name:"Óvalo Chulucanas", type:"destino", day:null, time:null, district:"Castilla", address:"Carr. Interoceánica Norte Km 249", sentido:"Noroeste a Este", lat:-5.17717070321096, lng:-80.5620954420535, note:"Ingreso a Piura" }
+    ]
+  }
+};
+
+let map = null;
+let currentRoute = null;
+
+function clearMap(){
+  if (map){
+    map.remove();
+    map = null;
+  }
+}
+
+function loadRoute(key){
+  const route = routes[key];
+  if (!route) return;
+  currentRoute = key;
+
+  // toggle active button
+  document.querySelectorAll('.menu-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.route === key);
+  });
+
+  // header
+  document.getElementById('route-title').textContent = route.title;
+  document.getElementById('route-sub').textContent = route.sub;
+
+  // show map / sidebar, hide placeholder
+  document.getElementById('placeholder').style.display = 'none';
+  document.getElementById('map').style.display = 'block';
+  document.getElementById('sidebar').style.display = 'block';
+  document.getElementById('legend-mixto').style.display = route.stops.some(s => s.type === 'mixto') ? 'flex' : 'none';
+
+  clearMap();
+  map = L.map('map', { scrollWheelZoom:true }).setView(route.center, route.zoom);
+  const esriCalles = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+    attribution:'Tiles &copy; Esri &mdash; Source: Esri, HERE, Garmin, OpenStreetMap contributors', maxZoom:19
+  });
+  const esriTopo = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
+    attribution:'Tiles &copy; Esri &mdash; Source: Esri, HERE, Garmin, USGS, NGA', maxZoom:19
+  });
+  const esriSatelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution:'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics', maxZoom:19
+  });
+  esriCalles.addTo(map);
+  L.control.layers({ 'Calles':esriCalles, 'Topográfico':esriTopo, 'Satélite':esriSatelite }, null, { position:'topright' }).addTo(map);
+
+  const stops = route.stops;
+  const routeLatLngs = stops.map(s => [s.lat, s.lng]);
+  const fallbackLine = L.polyline(routeLatLngs, { color:'#0038ff', weight:3, opacity:0.7, dashArray:'6 6' }).addTo(map);
+
+  const pts = route.via ? [stops[0], ...route.via.map(v => ({lat:v[0], lng:v[1]})), stops[stops.length-1]] : stops;
+  const coordsParam = pts.map(s => `${s.lng},${s.lat}`).join(';');
+  const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsParam}?overview=full&geometries=geojson`;
+
+  const statusBadge = document.createElement('div');
+  statusBadge.style.cssText = 'position:absolute;z-index:1000;top:10px;left:50px;background:#fff;padding:4px 10px;border-radius:4px;font-family:Arial,Helvetica,sans-serif;font-size:0.72rem;box-shadow:0 1px 4px rgba(0,0,0,0.3);color:#555;';
+  statusBadge.textContent = 'Calculando recorrido por carretera…';
+  document.getElementById('map').appendChild(statusBadge);
+
+  const requestKey = key;
+  fetch(osrmUrl)
+    .then(res => { if (!res.ok) throw new Error('OSRM respondió con error: ' + res.status); return res.json(); })
+    .then(data => {
+      if (requestKey !== currentRoute) return; // usuario cambió de mapa mientras cargaba
+      if (data.code !== 'Ok' || !data.routes || !data.routes.length) throw new Error('Sin ruta disponible');
+      fallbackLine.remove();
+      L.geoJSON(data.routes[0].geometry, { style: { color:'#ffffff', weight:9, opacity:0.95 } }).addTo(map);
+      const roadRoute = L.geoJSON(data.routes[0].geometry, { style: { color:'#0038ff', weight:5, opacity:1 } }).addTo(map);
+      map.fitBounds(roadRoute.getBounds(), { padding:[30,30] });
+      const km = (data.routes[0].distance / 1000).toFixed(0);
+      statusBadge.textContent = `Recorrido por carretera: ~${km} km`;
+      setTimeout(() => { statusBadge.style.opacity = '0'; statusBadge.style.transition = 'opacity .6s'; }, 3000);
+    })
+    .catch(err => {
+      if (requestKey !== currentRoute) return;
+      console.warn('No se pudo obtener el ruteo por carretera, se mantiene la línea recta de referencia.', err);
+      statusBadge.textContent = 'No se pudo cargar el trazado por carretera (sin conexión al servicio de ruteo). Se muestra línea de referencia.';
+      statusBadge.style.color = '#8a1f3b';
+    });
+
+  const listEl = document.getElementById('stop-list');
+  listEl.innerHTML = '';
+  let lastDay = null;
+  stops.forEach(s => {
+    if (s.day !== lastDay && s.day !== null) {
+      const dh = document.createElement('div');
+      dh.className = 'day-heading';
+      dh.textContent = 'Día ' + s.day;
+      listEl.appendChild(dh);
+      lastDay = s.day;
+    }
+
+    const icon = L.divIcon({
+      className:'',
+      html:`<div style="background:${colors[s.type]};width:28px;height:28px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;">
+              <span style="transform:rotate(45deg);font-size:${s.type==='mixto'?9:13}px;">${symbols[s.type]}</span>
+            </div>`,
+      iconSize:[28,28],
+      iconAnchor:[14,28],
+      popupAnchor:[0,-26]
+    });
+    const marker = L.marker([s.lat, s.lng], { icon }).addTo(map);
+    marker.bindPopup(
+      `<b>${s.name}</b><br>
+       <span style="color:${colors[s.type]};font-weight:bold;">${labels[s.type]}</span><br>
+       ${s.time ? (s.day ? 'Día ' + s.day + ' · ' : '') + s.time + '<br>' : ''}
+       ${s.district ? 'Distrito: ' + s.district + '<br>' : ''}
+       ${s.address ? s.address + '<br>' : ''}
+       ${s.sentido ? 'Sentido: ' + s.sentido + '<br>' : ''}
+       <span style="color:#555;">${s.note}</span>`
+    );
+
+    const card = document.createElement('div');
+    card.className = 'stop-card';
+    card.style.borderLeftColor = colors[s.type];
+    card.innerHTML = `
+      <span class="tag" style="background:${colors[s.type]}">${labels[s.type]}</span>
+      <div class="title">${symbols[s.type]} ${s.name}</div>
+      ${s.time ? `<div class="meta">${s.day ? 'Día ' + s.day + ' · ' : ''}${s.time}</div>` : ''}
+      ${s.district ? `<div class="meta">${s.district} · ${s.sentido}</div>` : ''}
+      ${s.address ? `<div class="detail">${s.address}</div>` : ''}
+      ${s.district ? `<div class="detail"><b>${s.note}</b></div>` : ''}
+    `;
+    card.addEventListener('click', () => {
+      map.setView([s.lat, s.lng], route.focusZoom || 9, { animate:true });
+      marker.openPopup();
+    });
+    listEl.appendChild(card);
+  });
+
+  map.fitBounds(L.latLngBounds(routeLatLngs), { padding:[30,30] });
+  setTimeout(() => { map.invalidateSize(); }, 50);
+}
+
+document.querySelectorAll('.menu-btn').forEach(btn => {
+  btn.addEventListener('click', () => loadRoute(btn.dataset.route));
+});
+</script>
+</body>
+</html>
